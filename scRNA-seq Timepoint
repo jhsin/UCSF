@@ -1,54 +1,19 @@
-#install packages and call from library
-# need to install all the ones listed below
-# use # to comment
-# have cursor on line and press command+enter to run that line
-
-
-install.packages("Seurat")
-# if install doesn't work
-BiocManager::install("package_name")
-BiocManager::install("WriteXLS")
-BiocManager::install("ggplot2")
-BiocManager::install("EnhancedVolcano")
-
-install.packages("WriteXLS")  
-install.packages("EnhancedVolcano")
-install.packages("ggplot2")
-
-
-################################################################ START
-
-setwd("/Users/ucsfw/Desktop")
-
 library(Seurat)
 library(ggplot2)
 library(patchwork)
 library(dplyr)
-library(EnhancedVolcano)
 library(ggrepel)
 
 
-# to save object after you make it
-
-
-#saveRDS(Runx1, file = "/Users/......./Runx1.rds")
-
-# load an object
-#Runx1 <- readRDS("/Users/........./Runx1.rds")
-
-# Make Objects
 # read 10x data # link folder w matrix file
-P3M1.data <- Read10X(data.dir = "/Users/ucsfw/Desktop/Manley Fib Mes/MP3/")
-P7M1.data <- Read10X(data.dir = "/Users/ucsfw/Desktop/Manley Fib Mes/MP7/")
-P14M1.data <- Read10X(data.dir = "/Users/ucsfw/Desktop/Manley Fib Mes/MP14/")
-#P28WT.data <- Read10X(data.dir = "/Users/ucsfw/Desktop/WT P28 R1/")
-
+P3M1.data <- Read10X(data.dir = "/pathtofile/")
+P7M1.data <- Read10X(data.dir = "/pathtofile/")
+P14M1.data <- Read10X(data.dir = "/pathtofile/")
 
 # project= is what the samples are called, change as you see fit
 P3M1 <- CreateSeuratObject(counts = P3M1.data, project = "P3M", min.cells =3, min.features = 200)
 P7M1 <- CreateSeuratObject(counts = P7M1.data, project = "P7M", min.cells =3, min.features = 200)
 P14M1 <- CreateSeuratObject(counts = P14M1.data, project = "P14M", min.cells =3, min.features = 200)
-#P28WT <- CreateSeuratObject(counts = P28WT.data, project = "P28WT", min.cells =3, min.features = 200)
 
 #Merge just the fib and entho datasets
 PWT1 <- merge(P3M1, y= P7M1, add.cell.ids = c("P3M","P7M"), project = "PWT2") 
@@ -75,19 +40,7 @@ keep_cells = colnames(PWT1)[PWT1$percent.mt<=20 &
 PWT1 <- subset(PWT1, cells = keep_cells)  
 
 
-
-# normalize and integrate data #this will take some time
-#PWT1.list <- SplitObject(PWT1, split.by = "orig.ident")
-#PWT1.list <- lapply(X = PWT1.list, FUN = function(x) {
-#  x <- NormalizeData(x)
-#  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
-#})
-#PWT1.anchors <- FindIntegrationAnchors(object.list = PWT1.list, dims = 1:20)
-#PWT1 <- IntegrateData(anchorset = PWT1.anchors, dims = 1:20)
-#PWT1[["RNA"]] <- JoinLayers(PWT1[["RNA"]])
-
-
-# normalize and integrate data #this will take some time
+# normalize and integrate data 
 PWT1 <- NormalizeData(PWT1)
 PWT1 <- FindVariableFeatures(PWT1, selection.method =  "vst", nfeatures = 3500)
 PWT1 <- ScaleData(PWT1)
@@ -95,8 +48,6 @@ PWT1[["RNA"]] <- JoinLayers(PWT1[["RNA"]])
 
 PWT1 <- ScaleData(PWT1, verbose = FALSE)
 PWT1 <- RunPCA(PWT1, npcs = 30, verbose = FALSE)
-##########################STOP HERE TO RUN MONOCLE3###########################################
-
 
 PWT1.list <- SplitObject(PWT1, split.by = "orig.ident")
 PWT1.anchors <- FindIntegrationAnchors(object.list = PWT1.list, dims = 1:20)
@@ -104,7 +55,7 @@ PWT1 <- IntegrateData(anchorset = PWT1.anchors, dims = 1:20)
 PWT1[["RNA"]] <- JoinLayers(PWT1[["RNA"]])
 
 
-# run PCA and clusting.  # assay should be intergrated for making UMAP, but RNA for doing gene expression analysis
+# run PCA and clusting. 
 DefaultAssay(PWT1) <- "integrated"
 
 PWT1 <- ScaleData(PWT1, verbose = FALSE)
@@ -121,253 +72,16 @@ p1_PWT1
 p2_PWT1
 p3_PWT1
 
-# Can also provide multiple idents using the typical R syntax "c()"
-PWT1 <- subset(x = PWT1, idents = c(7,9), invert = TRUE)
-
-
-
-# numbers of cells in each identity
-table(PWT1$orig.ident)
-
 
 # find markers of clusters
 DefaultAssay(PWT1) <- "integrated"
 Idents(PWT1) <- "seurat_clusters"
-
-##top10 <- markers %>% group_by(cluster) %>% top_n(n = 20, PWT1WT = avg_log2FC)
-
-##WriteXLS(ExcelFileName = "tmpPWT1.xls", x = markers.group.PWT1) # will save in whatever directory youre in. to change directory go top menu session -> set working directory
-
 markers.PWT1<- FindAllMarkers(PWT1, only.pos = TRUE, min.pct = 0.15, logfc.threshold = 0.25)
 
 
 # Plot gene expression
-DefaultAssay(PWT1) <- "RNA" # IMPORTANT. All gene expression done on "RNA" assay
+DefaultAssay(PWT1) <- "RNA" #All gene expression done on "RNA" assay
 
-FeaturePlot(PWT1, features = c("Aire", "Pecam1", "Pdgfra", "Pdgfrb", "Psmb11", "Runx1"))
+FeaturePlot(PWT1, features = c("gene"))
 
-
-########################################################## To get DEEPER #################################################################
-############### DE GENE PER CLUSTER ##############################################################################################
-
-DefaultAssay(PWT1) <- "RNA" # IMPORTANT. All gene expression done on "RNA" assay
-
-PWT1 <- RenameIdents(PWT1, `0` = "0", 
-                     `1` = "1", 
-                     `2` = "2", 
-                     `3` = "3", 
-                     `4` = "4", 
-                     `5` = "5",
-                     `6` = "6",
-                     `7` = "7",
-                     `8` = "8",
-                     `9` = "9",
-                     '10'= "10"
-) 
-
-,
-`9` = "9",
-'10'= "10",
-'11'= "11"
-
-
-
-PWT1[["named.ident"]] <-Idents(PWT1)
-
-# subset clusters (if want to remove misc cell types or zoom into one cell type for DGE)
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("0"))
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("1"))
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("2"))
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("3"))
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("4"))
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("5"))
-PWT1_small <- subset(PWT1, subset = named.ident %in% c("10"))
-
-
-
-# find markers of each identity  
-Idents(PWT1_small) <- "orig.ident"
-markers.group.PWT1_small <- FindAllMarkers(PWT1_small, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.000000000000000015)
-#markers <- FindMarkers(Runx1_small, ident.1 = "KO", min.pct = 0.1, logfc.threshold = 0.15)
-#markers$gene <- rownames(markers)
-markers <- FindMarkers(PWT1_small, ident.1 = "P3M", ident.2 = "P28WT", min.pct = 0.1, logfc.threshold = 0.000000000000000015)
-markers$gene <- rownames(markers)
-write.csv(markers.group.PWT1_small, file = "P3vTECEndo.csv")
-
-# find markers of each identity  
-Idents(PWT1_small) <- "orig.ident"
-markers.group.PWT1_small <- FindAllMarkers(PWT1_small, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.000000000000000015)
-#markers <- FindMarkers(Runx1_small, ident.1 = "KO", min.pct = 0.1, logfc.threshold = 0.15)
-#markers$gene <- rownames(markers)
-markers <- AverageExpression(PWT1_small, ident.1 = "P3M", ident.2 = "P28WT", min.pct = 0.1, logfc.threshold = 0.000000000000000015)
-markers$gene <- rownames(markers)
-write.csv(markers.group.PWT1_small, file = "P3vTECEndo2.csv")
-
-
-# Example for using AverageExpression
-AverageExpression(object = PWT1_small, features = c("Egf", "Igf2", "Fgf10", "Fgf7"), group.by = "orig.ident")
-AverageExpression(object = PWT1_small, features = c("Egfr", "Igf1r", "Fgfr2", "Runx1"), group.by = "orig.ident")
-
-
-
-#don't use
-VlnPlot(PWT1_small, features = "Timd2", group.by = "orig.ident", cols = c("firebrick1", "cyan3"), pt.size = 1) #use pt.size=0 for no dots
-
-
-
-# psuedocount use is good for super lowly expressed genes to get significance on pval adj. I can explain this more!
-#markers <- FindAllMarkers(Runx1_small, only.pos=TRUE, min.pct = 0.10, logfc.threshold = 0.15, pseudocount.use=0.1)
-
-keyvals <-  ifelse(
-  markers$avg_log2FC < -0.4, "firebrick1",
-  ifelse(markers$avg_log2FC > 0.4, 'cyan3',
-         'grey'))
-keyvals[is.na(keyvals)] <- 'black'
-names(keyvals)[keyvals == 'cyan3'] <- 'Down KO'
-names(keyvals)[keyvals == 'grey'] <- 'No Change'
-names(keyvals)[keyvals == 'firebrick1'] <- 'UP KO'
-
-
-
-EnhancedVolcano(markers,
-                lab = rownames(markers),
-                x = 'avg_log2FC',
-                y = 'p_val',
-                pCutoff = 1e-5,
-                FCcutoff = 0.4,
-                pointSize = 4,
-                labSize = 5.0,
-                #selectLab = c('Aire', 'Fezf2', 'Ins2', 'Csn2', 'Pcp4', 'H2-Ab1', 'Ciita', 'Cd74'),
-                boxedLabels = TRUE,
-                drawConnectors = TRUE,
-                widthConnectors = 1.0,
-                
-                xlim = c(-3,4),
-                ylim = c(0,90),
-                colCustom = keyvals,
-                title = "",
-                gridlines.major = FALSE,
-                gridlines.minor = FALSE,
-)
-
-http://127.0.0.1:29415/graphics/plot_zoom_png?width=575&height=267
-
-selectLab = c('Sftpc', 'Sftpa1', 'Cxcl15'),
-boxedLabels = TRUE,
-drawConnectors = TRUE,
-widthConnectors = 1.0,
-
-selectLab = c('Aire', 'Fezf2', 'Ins2', 'Csn2', 'Pcp4', 'Sirt1', 'H2-Ab1', 'H2-Oa', 'Spt1', 'Gad1'),
-boxedLabels = TRUE,
-drawConnectors = TRUE,
-widthConnectors = 1.0
-
-
-
-###################################################################
-setwd("/Users/ucsfw/Desktop")
-
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-BiocManager::install(version = "3.10")
-
-##################################################################################################
-#Read data file
-res <- read.csv("6-13-2024 ATII vs All.csv", header=TRUE)
-
-#Volcano plot with dimensions and labels
-with(res, plot(Log2FC, -log10(RawP),
-               pch=20, xlim=c(-1.5,1.5), ylim=c(0,35),
-))
-
-#Designate all points with specific colors
-#AAA = the value that you want
-
-with(subset(res, -log10(RawP)>0.05),
-     points(Log2FC,
-            -log10(RawP),
-            pch=20, col="gray"))
-
-with(subset(res, FDR<0.05 & Log2FC>0.5),
-     points(Log2FC,
-            -log10(RawP),
-            pch=20, col="purple"))
-
-with(subset(res, FDR<0.05 & Log2FC < -0.5),
-     points(Log2FC,
-            -log10(RawP),
-            pch=20, col="purple"))
-
-with(subset(res, Log2FC>0.05 & Log2FC<0.5),
-     points(Log2FC,
-            -log10(RawP),
-            pch=20, col="gray"))
-
-with(subset(res, -log10(RawP)<0.5),
-     points(Log2FC,
-            -log10(RawP),
-            pch=20, col="gray"))
-
-
-#LABEL#
-with(subset(res, RawP<.05 & abs(Log2FC)>0.05 & gene=="Sftpc"),
-     points(Log2FC, -log10(RawP),
-            pch=20, col="black", cex=2))
-
-
-with(subset(res, RawP<.05 & abs(Log2FC)>0.05 & gene=="Sftpa1"),
-     points(Log2FC, -log10(RawP),
-            pch=20, col="black", cex=2))
-with(subset(res, RawP<.05 & abs(Log2FC)>0.05 & gene=="Ager"),
-     points(Log2FC, -log10(RawP),
-            pch=20, col="black", cex=2))
-with(subset(res, RawP<.05 & abs(Log2FC)>0.05 & gene=="Cxcl15"),
-     points(Log2FC, -log10(RawP),
-            pch=20, col="black", cex=2))
-
-
-
-
-
-####################################
-
-res <- read.csv("111Cluster_Runx1.csv", header=TRUE)
-keyvals <-  ifelse(
-  res$avg_log2FC < -0.4, 'blue',
-  ifelse(res$avg_log2FC > 0.4, 'red',
-         'black'))
-keyvals[is.na(keyvals)] <- 'black'
-names(keyvals)[keyvals == 'red'] <- 'Upregulated'
-names(keyvals)[keyvals == 'black'] <- 'No Change'
-names(keyvals)[keyvals == 'blue'] <- 'Downregulated'
-
-EnhancedVolcano(res,
-                lab = rownames(res),
-                x = 'avg_log2FC',
-                y = 'p_val',
-                selectLab = c('Il7', 'Hes6','Junb','Fosb'),
-                pCutoff = 1e-5,
-                FCcutoff = 0.4,
-                pointSize = 3.0,
-                labSize = 6.0,
-                labCol = 'black',
-                labFace = 'bold',
-                boxedLabels = TRUE,
-                xlim = c(-1,2),
-                colCustom = keyvals,
-                title = "")
-
-
-
-EnhancedVolcano(res,
-                lab = rownames(res),
-                x = 'avg_log2FC',
-                y = 'p_val',
-                pCutoff = 1e-5,
-                FCcutoff = 0.4,
-                pointSize = 3.0,
-                labSize = 6.0,
-                xlim = c(-1,2.5),
-                colCustom = keyvals,
-                title = "")
 
